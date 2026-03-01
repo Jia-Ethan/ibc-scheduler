@@ -25,30 +25,14 @@ const LOCAL_STORAGE_KEYS = {
 };
 
 // Users
-export async function deleteUser(userId: string): Promise<void> {
-  // First delete related availability records
-  await supabase
-    .from('availability')
-    .delete()
-    .eq('user_id', userId);
-
-  // Then delete related schedule records
-  await supabase
-    .from('schedule')
-    .delete()
-    .eq('user_id', userId);
-
-  // Finally delete the user
-  const { error } = await supabase
+export async function getUsers(): Promise<User[]> {
+  const { data, error } = await supabase
     .from('users')
-    .delete()
-    .eq('id', userId);
+    .select('*')
+    .order('created_at', { ascending: true });
   
   if (error) {
-    console.error('Error deleting user:', error);
-    throw error;
-  }
-}
+    console.error('Error fetching users:', error);
     // Fallback to localStorage
     const local = localStorage.getItem(LOCAL_STORAGE_KEYS.USERS);
     return local ? JSON.parse(local) : [];
@@ -73,8 +57,20 @@ export async function saveUser(name: string): Promise<User> {
   
   return data;
 }
-
 export async function deleteUser(userId: string): Promise<void> {
+  // First delete related availability records
+  await supabase
+    .from('availability')
+    .delete()
+    .eq('user_id', userId);
+
+  // Then delete related schedule records
+  await supabase
+    .from('schedule')
+    .delete()
+    .eq('user_id', userId);
+
+  // Finally delete the user
   const { error } = await supabase
     .from('users')
     .delete()
@@ -85,6 +81,7 @@ export async function deleteUser(userId: string): Promise<void> {
     throw error;
   }
 }
+
 
 // Current User (local only - device specific)
 export function getCurrentUser(): User | null {
