@@ -5,14 +5,13 @@ import { AuroraBackground } from './components/AuroraBackground';
 import { HomePage } from './pages/HomePage';
 import { SchedulePage } from './pages/SchedulePage';
 import { AdminPage } from './pages/AdminPage';
-import { LockScreen } from './pages/LockScreen';
+// LockScreen removed - using GitHub Pages version without lock
 import { ThemeToggle } from './components/ThemeToggle';
 
 function AppContent() {
-  const { viewMode, setIsLocked } = useApp();
+  const { viewMode } = useApp();
 
-  // If locked, show lock screen
-  return <LockScreen onUnlock={() => setIsLocked(false)} />;
+  // Lock screen removed - direct to main content
 
   return (
     <div className="relative min-h-screen">
