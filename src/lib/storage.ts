@@ -6,8 +6,8 @@ import type { User, Availability, Schedule } from '../types';
 // 2. 執行 setup.sql 初始化數據庫
 // 3. 在 Project Settings > API 中獲取以下信息
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://your-project-url.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
+const SUPABASE_URL = 'https://gwohqnrjsshxqvgpdxkj.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3b2hxbnJqc3NoeHF2Z3BkeGtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MjY5MzMsImV4cCI6MjA4NjMwMjkzM30.TBAyDjYmjyVxfiY95vyNUj4DxML_JNvg5YZV-lrMyCI';
 
 // 檢查配置
 if (SUPABASE_URL.includes('your-project') || SUPABASE_KEY.includes('your-key')) {
