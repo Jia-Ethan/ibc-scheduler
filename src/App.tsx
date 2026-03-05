@@ -9,16 +9,10 @@ import { LockScreen } from './pages/LockScreen';
 import { ThemeToggle } from './components/ThemeToggle';
 
 function AppContent() {
-  const { viewMode, isLocked, setIsLocked } = useApp();
-
-  // DEBUG: Log the lock state
-  console.log('[DEBUG] AppContent rendered, isLocked =', isLocked);
+  const { viewMode, setIsLocked } = useApp();
 
   // If locked, show lock screen
-  if (isLocked) {
-    console.log('[DEBUG] Should show LockScreen');
-    return <LockScreen onUnlock={() => setIsLocked(false)} />;
-  }
+  return <LockScreen onUnlock={() => setIsLocked(false)} />;
 
   return (
     <div className="relative min-h-screen">
