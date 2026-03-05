@@ -57,5 +57,37 @@ CREATE POLICY "Allow all" ON users FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all" ON availability FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all" ON schedule FOR ALL USING (true) WITH CHECK (true);
 
+-- 請假申請表
+CREATE TABLE IF NOT EXISTS leave_requests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+  period INTEGER NOT NULL CHECK (period >= 1 AND period <= 8),
+  reason TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 排班歷史表
+CREATE TABLE IF NOT EXISTS schedule_history (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  schedule_data JSONB NOT NULL,
+  generated_at TIMESTAMP DEFAULT NOW(),
+  note TEXT
+);
+
+-- 啟用 Realtime
+ALTER TABLE leave_requests REPLICA IDENTITY FULL;
+ALTER TABLE schedule_history REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE leave_requests;
+ALTER PUBLICATION supabase_realtime ADD TABLE schedule_history;
+
+-- RLS
+ALTER TABLE leave_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE schedule_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all" ON leave_requests FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all" ON schedule_history FOR ALL USING (true) WITH CHECK (true);
+
 -- 插入測試數據（可選）
 -- INSERT INTO users (name) VALUES ('Ethan'), ('Alice'), ('Bob');

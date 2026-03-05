@@ -33,4 +33,4 @@ export const PERIODS = [
   { num: 8, label: '第八節', time: '16:00-17:00' },
 ] as const;
 
-export type ViewMode = 'home' | 'schedule' | 'admin';
+export type ViewMode = 'home' | 'schedule' | 'admin' | 'leave-requests' | 'history';

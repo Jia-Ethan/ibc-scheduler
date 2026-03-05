@@ -1,12 +1,14 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { ThemeProvider } from './context/ThemeContext';
 import { useApp } from './context/AppContext';
 import { AuroraBackground } from './components/AuroraBackground';
 import { HomePage } from './pages/HomePage';
 import { SchedulePage } from './pages/SchedulePage';
 import { AdminPage } from './pages/AdminPage';
 import { LockScreen } from './pages/LockScreen';
+import { ThemeToggle } from './components/ThemeToggle';
 
-function App() {
+function AppContent() {
   const { viewMode, isLocked, setIsLocked } = useApp();
 
   // If locked, show lock screen
@@ -55,7 +57,18 @@ function App() {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Theme Toggle */}
+      <ThemeToggle />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 

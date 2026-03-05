@@ -264,6 +264,115 @@ export async function autoSchedule(): Promise<Schedule[]> {
   return newSchedule;
 }
 
+// Leave Requests
+export interface LeaveRequest {
+  id: string;
+  user_id: string;
+  day_of_week: number;
+  period: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getLeaveRequests(): Promise<LeaveRequest[]> {
+  const { data, error } = await supabase
+    .from('leave_requests')
+    .select('*')
+    .order('created_at', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching leave requests:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function submitLeaveRequest(
+  userId: string,
+  dayOfWeek: number,
+  period: number,
+  reason: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('leave_requests')
+    .insert([{ 
+      user_id: userId, 
+      day_of_week: dayOfWeek, 
+      period, 
+      reason,
+      status: 'pending' 
+    }]);
+  
+  if (error) {
+    console.error('Error submitting leave request:', error);
+    throw error;
+  }
+}
+
+export async function updateLeaveRequestStatus(
+  id: string,
+  status: 'approved' | 'rejected'
+): Promise<void> {
+  const { error } = await supabase
+    .from('leave_requests')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  
+  if (error) {
+    console.error('Error updating leave request:', error);
+    throw error;
+  }
+}
+
+// Schedule History
+export interface ScheduleHistory {
+  id: string;
+  schedule_data: any[];
+  generated_at: string;
+  note: string;
+}
+
+export async function getScheduleHistory(): Promise<ScheduleHistory[]> {
+  const { data, error } = await supabase
+    .from('schedule_history')
+    .select('*')
+    .order('generated_at', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching schedule history:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function saveScheduleToHistory(note: string = ''): Promise<void> {
+  const schedule = await getSchedule();
+  const { error } = await supabase
+    .from('schedule_history')
+    .insert([{ 
+      schedule_data: schedule,
+      note 
+    }]);
+  
+  if (error) {
+    console.error('Error saving schedule to history:', error);
+  }
+}
+
+export async function deleteScheduleHistory(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('schedule_history')
+    .delete()
+    .eq('id', id);
+  
+  if (error) {
+    console.error('Error deleting schedule history:', error);
+    throw error;
+  }
+}
+
 // Realtime subscription
 export function subscribeToSchedule(callback: (schedule: Schedule[]) => void) {
   return supabase

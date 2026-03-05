@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, Calendar, Wand2, Download, 
-  Plus, Trash2, Check, X, Shield, Lock, Languages, LogOut, AlertCircle
+  Plus, Trash2, Check, X, Shield, Lock, Languages, LogOut, AlertCircle,
+  ClipboardList, History
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -20,7 +21,9 @@ import {
   subscribeToAvailability,
   subscribeToUsers
 } from '../lib/storage';
-import { exportToCSV, cn } from '../lib/utils';
+import { exportScheduleToCSV, cn, detectConflicts, calculateHoursPerUser } from '../lib/utils';
+import { LeaveRequestsPage } from './LeaveRequestsPage';
+import { ScheduleHistoryPage } from './ScheduleHistoryPage';
 
 const ADMIN_PASSWORD = 'IBCprincipal';
 
@@ -32,10 +35,23 @@ export function AdminPage() {
   const [error, setError] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [schedule, setSchedule] = useState<Map<string, string>>(new Map());
-  const [activeTab, setActiveTab] = useState<'users' | 'schedule'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'users' | 'leave-requests' | 'history'>('schedule');
   const [newUserName, setNewUserName] = useState('');
   const [selectedSlot, setSelectedSlot] = useState<{day: number, period: number} | null>(null);
   const [availability, setAvailability] = useState<Availability[]>([]);
+
+  // Conflict detection and hours stats
+  const scheduleArray = useMemo(() => {
+    const arr: { userId: string; dayOfWeek: number; period: number; assigned: boolean }[] = [];
+    schedule.forEach((userId, key) => {
+      const [day, period] = key.split('-').map(Number);
+      arr.push({ userId, dayOfWeek: day, period, assigned: true });
+    });
+    return arr;
+  }, [schedule]);
+
+  const conflicts = useMemo(() => detectConflicts(scheduleArray, users), [scheduleArray, users]);
+  const hoursStats = useMemo(() => calculateHoursPerUser(scheduleArray, users), [scheduleArray, users]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -121,32 +137,11 @@ export function AdminPage() {
     const usersData = await getUsers();
     const scheduleData = await getSchedule();
     
-    // Build CSV data
-    const headers = ['節次/時間', ...DAYS];
-    const rows: string[][] = [headers];
-    
-    PERIODS.forEach(period => {
-      const row: string[] = [`${period.label} (${period.time})`];
-      DAYS.forEach((_, dayIndex) => {
-        const assignment = scheduleData.find((s: { dayOfWeek: number; period: number; userId: string }) => 
-          s.dayOfWeek === dayIndex && s.period === period.num
-        );
-        if (assignment) {
-          const user = usersData.find((u: { id: string; name: string }) => u.id === assignment.userId);
-          row.push(user?.name || '');
-        } else {
-          row.push('-');
-        }
-      });
-      rows.push(row);
-    });
-    
-    const csv = exportToCSV(rows);
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `排班表_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+    exportScheduleToCSV(
+      scheduleData,
+      usersData,
+      `排班表_${new Date().toISOString().split('T')[0]}.csv`
+    );
   };
 
   const getUserName = (userId: string) => {
@@ -312,6 +307,30 @@ export function AdminPage() {
               <Users className="w-5 h-5" />
               <span className="font-medium">{t('userManagement')}</span>
             </button>
+            <button
+              onClick={() => setActiveTab('leave-requests')}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
+                activeTab === 'leave-requests'
+                  ? "bg-blue-50/50 text-blue-600 shadow-sm shadow-blue-500/10"
+                  : "text-slate-600 hover:bg-white/40"
+              )}
+            >
+              <ClipboardList className="w-5 h-5" />
+              <span className="font-medium">請假審批</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
+                activeTab === 'history'
+                  ? "bg-blue-50/50 text-blue-600 shadow-sm shadow-blue-500/10"
+                  : "text-slate-600 hover:bg-white/40"
+              )}
+            >
+              <History className="w-5 h-5" />
+              <span className="font-medium">排班歷史</span>
+            </button>
           </nav>
 
           {/* Language Toggle */}
@@ -381,6 +400,39 @@ export function AdminPage() {
                     {t('exportCSV')}
                   </button>
                 </div>
+              </div>
+
+              {/* Conflict Warning */}
+              {conflicts.length > 0 && (
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    <span className="font-medium text-red-600 dark:text-red-400">⚠️ 排班衝突警告</span>
+                  </div>
+                  <div className="space-y-1">
+                    {conflicts.map((c, i) => (
+                      <div key={i} className="text-sm text-red-600 dark:text-red-300">
+                        {c.userName} 在 {DAYS[c.day]} 被安排第 {c.periods.join(', ')} 節（衝突）
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Hours Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                {hoursStats.map(stat => (
+                  <div
+                    key={stat.userId}
+                    className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-100 dark:border-gray-700"
+                  >
+                    <div className="text-sm text-gray-500 dark:text-gray-400">{stat.name}</div>
+                    <div className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
+                      {stat.hours}
+                    </div>
+                    <div className="text-xs text-gray-400">時段</div>
+                  </div>
+                ))}
               </div>
 
               {/* Schedule Grid */}
@@ -604,6 +656,32 @@ export function AdminPage() {
                   )}
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          {/* Leave Requests Page */}
+          {activeTab === 'leave-requests' && (
+            <motion.div
+              key="leave-requests"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <LeaveRequestsPage />
+            </motion.div>
+          )}
+
+          {/* Schedule History Page */}
+          {activeTab === 'history' && (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ScheduleHistoryPage />
             </motion.div>
           )}
         </AnimatePresence>
