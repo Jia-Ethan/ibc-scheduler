@@ -23,8 +23,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isLocked, setIsLocked] = useState(() => {
-    // Check if previously unlocked
-    return !localStorage.getItem('ibc_unlocked');
+    // Always require PIN on refresh
+    return true;
   });
 
   const setCurrentUser = useCallback((user: User | null) => {

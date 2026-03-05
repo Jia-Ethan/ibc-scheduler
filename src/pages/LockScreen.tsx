@@ -76,7 +76,7 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
     if (lockoutUntil) return;
 
     if (enteredPin === CORRECT_PIN) {
-      localStorage.setItem('ibc_unlocked', 'true');
+      // Unlock - require PIN on every refresh
       onUnlock();
     } else {
       const newAttempts = attempts + 1;
