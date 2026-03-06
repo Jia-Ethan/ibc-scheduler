@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, Calendar, Wand2, Download, 
-  Plus, Trash2, Check, X, Shield, Lock, Languages, LogOut, AlertCircle,
+  Plus, Trash2, Check, X, Shield, Lock, Languages, LogOut,
   ClipboardList, History
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -21,7 +21,7 @@ import {
   subscribeToAvailability,
   subscribeToUsers
 } from '../lib/storage';
-import { exportScheduleToCSV, cn, detectConflicts, calculateHoursPerUser } from '../lib/utils';
+import { exportScheduleToCSV, cn, calculateHoursPerUser } from '../lib/utils';
 import { LeaveRequestsPage } from './LeaveRequestsPage';
 import { ScheduleHistoryPage } from './ScheduleHistoryPage';
 
@@ -50,7 +50,6 @@ export function AdminPage() {
     return arr;
   }, [schedule]);
 
-  const conflicts = useMemo(() => detectConflicts(scheduleArray, users), [scheduleArray, users]);
   const hoursStats = useMemo(() => calculateHoursPerUser(scheduleArray, users), [scheduleArray, users]);
 
   useEffect(() => {
@@ -402,23 +401,6 @@ export function AdminPage() {
                 </div>
               </div>
 
-              {/* Conflict Warning */}
-              {conflicts.length > 0 && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                    <span className="font-medium text-red-600 dark:text-red-400">⚠️ 排班衝突警告</span>
-                  </div>
-                  <div className="space-y-1">
-                    {conflicts.map((c, i) => (
-                      <div key={i} className="text-sm text-red-600 dark:text-red-300">
-                        {c.userName} 在 {DAYS[c.day]} 被安排第 {c.periods.join(', ')} 節（衝突）
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Hours Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                 {hoursStats.map(stat => (
@@ -485,7 +467,6 @@ export function AdminPage() {
                             const key = `${dayIndex}-${period.num}`;
                             const userId = schedule.get(key);
                             const availableUsers = getAvailableUsersForSlot(dayIndex, period.num);
-                            const hasConflict = availableUsers.length > 1;
                             const isAssigned = !!userId;
                             
                             return (
@@ -500,9 +481,7 @@ export function AdminPage() {
                                 className={cn(
                                   "h-20 rounded-xl flex items-center justify-center relative",
                                   isAssigned 
-                                    ? hasConflict 
-                                      ? "bg-amber-100/70 border-2 border-amber-400/50 shadow-sm cursor-pointer hover:bg-amber-100/90" 
-                                      : "bg-white/60 shadow-sm cursor-pointer hover:bg-white/80"
+                                    ? "bg-white/60 shadow-sm cursor-pointer hover:bg-white/80"
                                     : availableUsers.length > 0
                                       ? "bg-blue-50/40 border border-blue-200/50 cursor-pointer hover:bg-blue-50/60"
                                       : "bg-white/20 border border-white/20 cursor-not-allowed"
@@ -531,13 +510,6 @@ export function AdminPage() {
                                   </div>
                                 ) : (
                                   <span className="text-slate-300 text-xs">{t('unassigned')}</span>
-                                )}
-                                
-                                {/* Conflict indicator */}
-                                {hasConflict && isAssigned && (
-                                  <div className="absolute top-1 right-1">
-                                    <AlertCircle className="w-4 h-4 text-amber-500" />
-                                  </div>
                                 )}
                               </motion.button>
                             );
