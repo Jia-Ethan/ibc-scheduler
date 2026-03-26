@@ -346,6 +346,42 @@ type RichTextSegment = {
   };
 };
 
+type WorksheetCellLike = {
+  value: unknown;
+  alignment?: unknown;
+  border?: unknown;
+  fill?: unknown;
+  font?: unknown;
+  numFmt?: string;
+  protection?: unknown;
+};
+
+type WorksheetRowLike = {
+  height?: number;
+};
+
+type WorksheetLike = {
+  model: {
+    merges?: string[];
+  };
+  getCell: (ref: string) => WorksheetCellLike;
+  getRow: (rowNumber: number) => WorksheetRowLike;
+  mergeCells: (range: string) => void;
+  unMergeCells: (range: string) => void;
+};
+
+type RowTemplate = {
+  height?: number;
+  cells: Array<{
+    alignment?: unknown;
+    border?: unknown;
+    fill?: unknown;
+    font?: unknown;
+    numFmt?: string;
+    protection?: unknown;
+  }>;
+};
+
 function buildReasonRichText(referenceDate: Date): { richText: RichTextSegment[] } {
   const year = referenceDate.getFullYear();
   const month = referenceDate.getMonth() + 1;
@@ -468,6 +504,118 @@ function clearDataRow(
   }
 }
 
+function getCellRef(rowNumber: number, colNumber: number): string {
+  return `${String.fromCharCode(64 + colNumber)}${rowNumber}`;
+}
+
+function cloneStylePart<T>(value: T): T {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneStylePart(item)) as T;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, cloneStylePart(entry)]),
+  ) as T;
+}
+
+function captureRowTemplate(worksheet: WorksheetLike, rowNumber: number, columnCount = 10): RowTemplate {
+  return {
+    height: worksheet.getRow(rowNumber).height,
+    cells: Array.from({ length: columnCount }, (_, index) => {
+      const cell = worksheet.getCell(getCellRef(rowNumber, index + 1));
+      return {
+        alignment: cloneStylePart(cell.alignment),
+        border: cloneStylePart(cell.border),
+        fill: cloneStylePart(cell.fill),
+        font: cloneStylePart(cell.font),
+        numFmt: cell.numFmt,
+        protection: cloneStylePart(cell.protection),
+      };
+    }),
+  };
+}
+
+function applyRowTemplate(
+  worksheet: WorksheetLike,
+  rowNumber: number,
+  template: RowTemplate,
+  columnCount = 10,
+) {
+  worksheet.getRow(rowNumber).height = template.height;
+
+  for (let col = 1; col <= columnCount; col += 1) {
+    const cell = worksheet.getCell(getCellRef(rowNumber, col));
+    const source = template.cells[col - 1];
+    cell.alignment = cloneStylePart(source.alignment);
+    cell.border = cloneStylePart(source.border);
+    cell.fill = cloneStylePart(source.fill);
+    cell.font = cloneStylePart(source.font);
+    cell.numFmt = source.numFmt;
+    cell.protection = cloneStylePart(source.protection);
+  }
+}
+
+function parseMergeRangeRows(range: string): { startRow: number; endRow: number } | null {
+  const parts = range.split(':');
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const start = parts[0]?.match(/\d+/)?.[0];
+  const end = (parts[1] || parts[0])?.match(/\d+/)?.[0];
+  if (!start || !end) {
+    return null;
+  }
+
+  return {
+    startRow: Number(start),
+    endRow: Number(end),
+  };
+}
+
+function clearMergedFooterRanges(worksheet: WorksheetLike, footerStartRow: number) {
+  const merges = [...(worksheet.model.merges || [])];
+  merges.forEach((range) => {
+    const rows = parseMergeRangeRows(range);
+    if (!rows) {
+      return;
+    }
+
+    if (rows.startRow >= footerStartRow || rows.endRow >= footerStartRow) {
+      worksheet.unMergeCells(range);
+    }
+  });
+}
+
+export function rebuildSubsidyFooterLayout(
+  worksheet: WorksheetLike,
+  templateTotalRow: number,
+  totalRow: number,
+  footerText: string,
+) {
+  const footerRow = totalRow + 1;
+  const totalTemplate = captureRowTemplate(worksheet, totalRow);
+  const footerTemplate = captureRowTemplate(worksheet, footerRow);
+
+  clearMergedFooterRanges(worksheet, Math.min(templateTotalRow, totalRow));
+  applyRowTemplate(worksheet, totalRow, totalTemplate);
+  applyRowTemplate(worksheet, footerRow, footerTemplate);
+
+  for (let col = 1; col <= 10; col += 1) {
+    worksheet.getCell(getCellRef(totalRow, col)).value = null;
+    worksheet.getCell(getCellRef(footerRow, col)).value = null;
+  }
+
+  worksheet.mergeCells(`A${totalRow}:H${totalRow}`);
+  worksheet.mergeCells(`A${footerRow}:J${footerRow}`);
+  worksheet.getCell(`A${totalRow}`).value = `${' '.repeat(88)}${TOTAL_LABEL}`;
+  worksheet.getCell(`A${footerRow}`).value = footerText;
+}
+
 export async function exportSubsidyDetailsToExcel(
   rows: SubsidyRow[],
   options: SubsidyExportOptions,
@@ -489,6 +637,7 @@ export async function exportSubsidyDetailsToExcel(
   }
 
   let totalRow = findTotalRow(worksheet);
+  const templateTotalRow = totalRow;
   const baseCapacity = totalRow - DATA_START_ROW;
   if (rows.length > baseCapacity) {
     const extraRows = rows.length - baseCapacity;
@@ -496,7 +645,6 @@ export async function exportSubsidyDetailsToExcel(
     totalRow += extraRows;
   }
 
-  const footerRow = totalRow + 1;
   const reasonCell = worksheet.getCell('A4');
   reasonCell.value = buildReasonValue(reasonCell.value, referenceDate);
 
@@ -518,12 +666,15 @@ export async function exportSubsidyDetailsToExcel(
     worksheet.getCell(`J${rowNumber}`).value = options.overLimitNotes[row.userId] || '';
   });
 
-  worksheet.getCell(`I${totalRow}`).value = { formula: `SUM(I${DATA_START_ROW}:I${totalRow - 1})` };
-
-  worksheet.getCell(`A${footerRow}`).value =
+  rebuildSubsidyFooterLayout(
+    worksheet,
+    templateTotalRow,
+    totalRow,
     `设岗单位负责人签字：                制表人签字：${options.preparerName || ''}` +
-    `                制表人电话：${options.preparerPhone || ''}` +
-    `              制表日期：${formatPreparedDate(options.preparedDate)}`;
+      `                制表人电话：${options.preparerPhone || ''}` +
+      `              制表日期：${formatPreparedDate(options.preparedDate)}`,
+  );
+  worksheet.getCell(`I${totalRow}`).value = { formula: `SUM(I${DATA_START_ROW}:I${totalRow - 1})` };
 
   const output = await workbook.xlsx.writeBuffer();
   const blob = new Blob([output], {

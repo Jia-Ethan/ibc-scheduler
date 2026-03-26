@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import ExcelJS from 'exceljs';
 import {
   MAX_STANDARD_HOURS,
   calculateSubsidyAmount,
@@ -6,6 +7,7 @@ import {
   createEditableSubsidyRow,
   createManualEditableSubsidyRow,
   getSubsidyRecordPeriod,
+  rebuildSubsidyFooterLayout,
   restoreEditableSubsidyRows,
   updateEditableSubsidyRowHours,
   validateApprovedHours,
@@ -114,5 +116,46 @@ describe('subsidy export helpers', () => {
       monthStart: '2026-03-01',
       monthEnd: '2026-03-31',
     });
+  });
+
+  it('rebuilds merged footer rows after the data area grows beyond template capacity', () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('补助明细');
+
+    for (let col = 1; col <= 10; col += 1) {
+      worksheet.getCell(13, col).value = `模板-${col}`;
+    }
+    worksheet.getRow(14).height = 24;
+    worksheet.getRow(15).height = 32;
+    worksheet.getCell('A14').value = `${' '.repeat(88)}合计：`;
+    worksheet.getCell('A15').value =
+      '设岗单位负责人签字：                制表人签字：测试人                制表人电话：12345678901              制表日期：2026年3月26日';
+    worksheet.getCell('I14').numFmt = '0.0';
+    worksheet.getCell('A14').font = { name: '宋体', size: 12 };
+    worksheet.getCell('A15').font = { name: '宋体', size: 12 };
+    worksheet.mergeCells('A14:H14');
+    worksheet.mergeCells('A15:J15');
+
+    worksheet.duplicateRow(13, 2, true);
+
+    rebuildSubsidyFooterLayout(
+      worksheet,
+      14,
+      16,
+      '设岗单位负责人签字：                制表人签字：测试人                制表人电话：12345678901              制表日期：2026年3月26日',
+    );
+    worksheet.getCell('I16').value = { formula: 'SUM(I6:I15)' };
+
+    expect([...worksheet.model.merges]).toContain('A16:H16');
+    expect([...worksheet.model.merges]).toContain('A17:J17');
+    expect(worksheet.getCell('A16').value).toBe(`${' '.repeat(88)}合计：`);
+    expect(worksheet.getCell('A17').value).toBe(
+      '设岗单位负责人签字：                制表人签字：测试人                制表人电话：12345678901              制表日期：2026年3月26日',
+    );
+    expect(worksheet.getCell('I16').value).toEqual({ formula: 'SUM(I6:I15)' });
+    expect(worksheet.getRow(16).height).toBe(24);
+    expect(worksheet.getRow(17).height).toBe(32);
+    expect(worksheet.getCell('A16').font).toMatchObject({ name: '宋体', size: 12 });
+    expect(worksheet.getCell('A17').font).toMatchObject({ name: '宋体', size: 12 });
   });
 });
