@@ -568,14 +568,15 @@ export function AdminPage() {
               <div className="glass-card rounded-2xl p-6">
                 <h2 className="text-sm font-medium text-slate-500 mb-4">{t('allUsers')}</h2>
                 <div className="space-y-2">
-                  <AnimatePresence>
-                    {users.map((user, index) => (
+                  <AnimatePresence mode="popLayout">
+                    {users.map((user) => (
                       <motion.div
                         key={user.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        transition={{ delay: index * 0.05 }}
+                        layoutId={`user-card-${user.id}`}
+                        initial={{ opacity: 0, x: -16, scale: 0.95 }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: 16, scale: 0.95, transition: { duration: 0.18 } }}
+                        transition={{ type: "spring", stiffness: 400, damping: 28 }}
                         className="flex items-center justify-between p-3 rounded-xl bg-white/40 hover:bg-white/60 transition-colors"
                       >
                         <div className="flex items-center gap-3">
