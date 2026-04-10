@@ -37,6 +37,8 @@ cd ibc-scheduler
 - 構建項目
 - 部署到 GitHub Pages
 
+> 注意：本專案部署在 GitHub Pages 子路徑 `/ibc-scheduler/` 下，`vite.config.ts` 必須保持 `base: './'`，否則線上會因靜態資源路徑錯誤而白屏。
+
 ### 方法二：手動部署
 
 #### 1. 創建 Supabase 項目
@@ -102,7 +104,16 @@ npm install
 npm run build
 
 # 部署到 GitHub Pages
-npm run deploy
+./deploy.sh
+```
+
+部署前請確認 `vite.config.ts` 仍為相對基路徑：
+
+```typescript
+export default defineConfig({
+  plugins: [react()],
+  base: './',
+})
 ```
 
 ## 📁 項目結構

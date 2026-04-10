@@ -49,6 +49,10 @@ fi
 
 # 構建
 echo "🔨 構建項目..."
+if ! grep -q "base: './'" vite.config.ts; then
+    echo "❌ vite.config.ts 必須使用相對基路徑 base: './'，否則 GitHub Pages 子路徑部署會白屏。"
+    exit 1
+fi
 npm run build
 
 # 部署到 GitHub Pages

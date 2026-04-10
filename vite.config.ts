@@ -4,5 +4,6 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/',
+  // GitHub Pages serves this app from /ibc-scheduler/, so assets must use relative paths.
+  base: './',
 })
