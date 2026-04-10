@@ -4,6 +4,11 @@
 
 ![Screenshot](https://via.placeholder.com/800x450.png?text=IBC+Scheduler)
 
+## 🌐 正式地址
+
+- **線上使用**：https://jia-ethan.github.io/ibc-scheduler/
+- **GitHub 倉庫**：https://github.com/Jia-Ethan/ibc-scheduler
+
 ## ✨ 功能特性
 
 - 🎨 **玻璃質感 UI** - 極光背景 + Framer Motion 動畫
@@ -19,7 +24,7 @@
 
 ```bash
 # 1. 克隆專案
-git clone https://github.com/Ethan-Pier/ibc-scheduler.git
+git clone https://github.com/Jia-Ethan/ibc-scheduler.git
 cd ibc-scheduler
 
 # 2. 運行部署腳本
