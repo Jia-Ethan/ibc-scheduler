@@ -26,6 +26,13 @@ const translations: Record<Language, Translations> = {
     // Home Page
     welcome: '请选择你的名字',
     welcomeSubtitle: '选择你的名字以开始排班',
+    homeWeeklyScheduleTitle: '本周班表',
+    homeWeeklyScheduleSubtitle: '展开查看当前整周排班安排，首页只读展示。',
+    homeWeeklyScheduleEmpty: '本周暂未安排班表',
+    homeWeeklyScheduleExpand: '点击展开查看本周班表',
+    homeWeeklyScheduleCollapse: '点击收起本周班表',
+    homeWeeklyScheduleAssignedCount: '已排班时段',
+    homeWeeklyScheduleParticipants: '参与人数',
     enterName: '输入姓名',
     adminLogin: '管理员登录',
     
@@ -261,6 +268,13 @@ const translations: Record<Language, Translations> = {
     // Home Page
     welcome: 'Select Your Name',
     welcomeSubtitle: 'Choose your name to start scheduling',
+    homeWeeklyScheduleTitle: 'This Week Schedule',
+    homeWeeklyScheduleSubtitle: 'Expand to review the current weekly assignments in read-only mode.',
+    homeWeeklyScheduleEmpty: 'No schedule has been arranged for this week yet',
+    homeWeeklyScheduleExpand: 'Tap to expand this week schedule',
+    homeWeeklyScheduleCollapse: 'Tap to collapse this week schedule',
+    homeWeeklyScheduleAssignedCount: 'Assigned slots',
+    homeWeeklyScheduleParticipants: 'Participants',
     enterName: 'Enter name',
     adminLogin: 'Admin Login',
     

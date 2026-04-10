@@ -61,6 +61,22 @@ export interface HoursStats {
   hours: number;
 }
 
+export interface WeeklyScheduleGridCell {
+  key: string;
+  dayOfWeek: number;
+  period: number;
+  assigned: boolean;
+  userId: string | null;
+  userName: string;
+  userInitial: string;
+}
+
+export interface WeeklyScheduleOverviewData {
+  cells: WeeklyScheduleGridCell[];
+  assignedSlotsCount: number;
+  participantCount: number;
+}
+
 export function calculateHoursPerUser(
   schedule: Schedule[],
   users: User[]
@@ -77,6 +93,50 @@ export function calculateHoursPerUser(
     name: user.name,
     hours: hoursMap.get(user.id) || 0,
   })).sort((a, b) => b.hours - a.hours);
+}
+
+export function buildWeeklyScheduleOverview(
+  schedule: Schedule[],
+  users: User[]
+): WeeklyScheduleOverviewData {
+  const userMap = new Map(users.map((user) => [user.id, user]));
+  const scheduleMap = new Map<string, Schedule>(
+    schedule
+      .filter((item) => item.dayOfWeek >= 0 && item.dayOfWeek <= 4 && item.period >= 1 && item.period <= 8)
+      .map((item) => [`${item.dayOfWeek}-${item.period}`, item] as const),
+  );
+
+  const cells: WeeklyScheduleGridCell[] = [];
+  const participantIds = new Set<string>();
+
+  for (let period = 1; period <= 8; period += 1) {
+    for (let dayOfWeek = 0; dayOfWeek < 5; dayOfWeek += 1) {
+      const key = `${dayOfWeek}-${period}`;
+      const assignment = scheduleMap.get(key);
+      const user = assignment ? userMap.get(assignment.userId) : undefined;
+      const userName = assignment ? user?.name || '未知' : '';
+
+      if (assignment) {
+        participantIds.add(assignment.userId);
+      }
+
+      cells.push({
+        key,
+        dayOfWeek,
+        period,
+        assigned: Boolean(assignment),
+        userId: assignment?.userId || null,
+        userName,
+        userInitial: userName ? userName.charAt(0) : '',
+      });
+    }
+  }
+
+  return {
+    cells,
+    assignedSlotsCount: scheduleMap.size,
+    participantCount: participantIds.size,
+  };
 }
 
 export interface UpcomingShift {
