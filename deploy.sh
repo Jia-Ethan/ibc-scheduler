@@ -68,6 +68,8 @@ fi
 
 # 保存當前分支
 CURRENT_BRANCH=$(git branch --show-current)
+PROJECT_ROOT=$(pwd)
+REMOTE_URL=$(git remote get-url origin)
 
 if [ "$CURRENT_BRANCH" != "main" ]; then
     echo "❌ 為避免 gh-pages 與主線再次漂移，現在只允許從 main 分支部署。"
@@ -75,25 +77,26 @@ if [ "$CURRENT_BRANCH" != "main" ]; then
     exit 1
 fi
 
-# 創建或切換到 gh-pages 分支
-if git show-ref --verify --quiet refs/heads/gh-pages; then
-    git checkout gh-pages
-    git rm -rf . || true
-else
-    git checkout --orphan gh-pages
-    git rm -rf . || true
-fi
+# 在乾淨臨時目錄中發布，避免把 node_modules、backups、dist 等本地 ignored 文件誤推到 gh-pages。
+DEPLOY_DIR=$(mktemp -d)
+trap 'rm -rf "$DEPLOY_DIR"' EXIT
 
-# 複製構建文件
-cp -r dist/* .
+cp -R "$PROJECT_ROOT/dist/." "$DEPLOY_DIR/"
+touch "$DEPLOY_DIR/.nojekyll"
 
-# 提交並推送
+cd "$DEPLOY_DIR"
+git init -q
+git checkout -b gh-pages
+git config user.name "$(git -C "$PROJECT_ROOT" config user.name || echo 'IBC Scheduler Deploy')"
+git config user.email "$(git -C "$PROJECT_ROOT" config user.email || echo 'deploy@ibc-scheduler.local')"
+git remote add origin "$REMOTE_URL"
+git fetch origin gh-pages:refs/remotes/origin/gh-pages || true
+
 git add .
 git commit -m "Deploy to GitHub Pages - $(date '+%Y-%m-%d %H:%M:%S')" || true
-git push origin gh-pages --force
+git push origin gh-pages --force-with-lease
 
-# 返回原分支
-git checkout "$CURRENT_BRANCH"
+cd "$PROJECT_ROOT"
 
 echo ""
 echo "✅ 部署完成！"
