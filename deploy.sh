@@ -1,9 +1,22 @@
 #!/bin/bash
 
-# IBC 排班系統 - 一鍵部署腳本
+# IBC 排班系統 - GitHub Pages 部署腳本
 # 用法: ./deploy.sh
 
-set -e
+set -euo pipefail
+
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$PROJECT_ROOT"
+
+load_env_file() {
+    local env_file="$1"
+    if [ -f "$env_file" ]; then
+        set -a
+        # shellcheck disable=SC1090
+        . "$env_file"
+        set +a
+    fi
+}
 
 echo "🚀 IBC 排班系統一鍵部署"
 echo "========================"
@@ -20,31 +33,30 @@ echo "✅ Node.js 版本: $(node --version)"
 echo "📦 安裝依賴..."
 npm install
 
-# 檢查 Supabase 配置
-STORAGE_FILE="src/lib/storage.ts"
-if grep -q "your-project-url" "$STORAGE_FILE" || grep -q "your-anon-key" "$STORAGE_FILE"; then
+# 檢查公開環境變量配置
+load_env_file ".env"
+load_env_file ".env.local"
+
+if [ -z "${VITE_SUPABASE_URL:-}" ] || [ -z "${VITE_SUPABASE_ANON_KEY:-}" ]; then
     echo ""
-    echo "⚠️  請先配置 Supabase"
+    echo "❌ 缺少公开 Supabase 配置。"
+    echo "请在 .env 或 .env.local 中设置 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY。"
+    echo "脚本不会再引导你修改 src/lib/storage.ts。"
+    exit 1
+fi
+
+if [[ "${VITE_SUPABASE_URL}" == *"your-project-url"* ]] || [[ "${VITE_SUPABASE_ANON_KEY}" == *"your-anon-key"* ]]; then
     echo ""
-    echo "步驟:"
-    echo "1. 訪問 https://supabase.com 創建項目"
-    echo "2. 在 SQL Editor 執行專案根目錄的 setup.sql"
-    echo "3. 獲取 Project URL 和 Anon Key"
-    echo "4. 更新 $STORAGE_FILE 中的配置"
+    echo "❌ 当前 .env / .env.local 里仍是示例占位值。"
+    echo "请改成真实的 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY 后再部署。"
+    exit 1
+fi
+
+if [ ! -f "public/subsidy-template.xlsx" ]; then
     echo ""
-    read -p "是否現在編輯配置文件? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        if command -v code &> /dev/null; then
-            code "$STORAGE_FILE"
-        elif command -v vim &> /dev/null; then
-            vim "$STORAGE_FILE"
-        else
-            open "$STORAGE_FILE"
-        fi
-        echo "請更新配置後重新運行 ./deploy.sh"
-        exit 0
-    fi
+    echo "❌ 缺少 public/subsidy-template.xlsx，当前补贴导出模板不完整。"
+    echo "请先恢复模板资源，再执行部署。"
+    exit 1
 fi
 
 # 構建
@@ -68,7 +80,6 @@ fi
 
 # 保存當前分支
 CURRENT_BRANCH=$(git branch --show-current)
-PROJECT_ROOT=$(pwd)
 REMOTE_URL=$(git remote get-url origin)
 
 if [ "$CURRENT_BRANCH" != "main" ]; then

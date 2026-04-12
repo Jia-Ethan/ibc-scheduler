@@ -1,5 +1,7 @@
 node_modules/
 dist/
+/assets/
+.vercel/
 .DS_Store
 *.log
 .env
@@ -9,4 +11,6 @@ dist/
 *.swp
 *.swo
 backups/
+/backups/
 supabase/.temp/
+coverage/

@@ -1,11 +1,12 @@
 {
   "name": "ibc-scheduler",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
-    "preview": "vite preview --host 0.0.0.0 --port $PORT",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
     "deploy": "./deploy.sh",
     "backup:subsidy": "node scripts/backup-subsidy-data.mjs"
   },

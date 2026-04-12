@@ -18,7 +18,7 @@ export interface UserProfile {
 
 export interface Availability {
   userId: string;
-  dayOfWeek: number; // 0 = Monday, 6 = Sunday
+  dayOfWeek: number; // 0 = Monday, 4 = Friday
   period: number; // 1-8
   isAvailable: boolean;
 }

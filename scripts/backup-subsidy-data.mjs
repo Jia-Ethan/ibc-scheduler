@@ -27,24 +27,7 @@ function parseEnvFile(filename) {
     }, {});
 }
 
-function readStorageFallback() {
-  const filepath = path.join(projectRoot, 'src', 'lib', 'storage.ts');
-  if (!fs.existsSync(filepath)) {
-    return {};
-  }
-
-  const source = fs.readFileSync(filepath, 'utf8');
-  const urlMatch = source.match(/const SUPABASE_URL = .*?\|\| '([^']+)'/);
-  const keyMatch = source.match(/const SUPABASE_KEY = .*?\|\| '([^']+)'/);
-
-  return {
-    SUPABASE_URL: urlMatch?.[1],
-    SUPABASE_ANON_KEY: keyMatch?.[1],
-  };
-}
-
 const env = {
-  ...readStorageFallback(),
   ...parseEnvFile('.env'),
   ...parseEnvFile('.env.local'),
   ...process.env,
@@ -57,7 +40,7 @@ const supabaseKey =
   env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('缺少 Supabase 凭证。请提供 SUPABASE_URL 与 SUPABASE_SERVICE_ROLE_KEY，或在 .env 中配置 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY。');
+  console.error('缺少 Supabase 凭证。请提供 SUPABASE_URL 与 SUPABASE_SERVICE_ROLE_KEY，或在 .env / .env.local 中配置公开 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY。');
   process.exit(1);
 }
 

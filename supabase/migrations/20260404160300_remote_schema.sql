@@ -59,7 +59,10 @@ CREATE TABLE public.availability (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid,
     day_of_week integer NOT NULL,
-    period integer NOT NULL
+    period integer NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    CONSTRAINT availability_day_of_week_check CHECK (((day_of_week >= 0) AND (day_of_week <= 4))),
+    CONSTRAINT availability_period_check CHECK (((period >= 1) AND (period <= 8)))
 );
 
 
@@ -72,10 +75,13 @@ CREATE TABLE public.leave_requests (
     user_id uuid,
     day_of_week integer NOT NULL,
     period integer NOT NULL,
-    reason text,
-    status text DEFAULT 'pending'::text,
-    created_at timestamp without time zone DEFAULT now(),
-    updated_at timestamp without time zone DEFAULT now()
+    reason text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    CONSTRAINT leave_requests_day_of_week_check CHECK (((day_of_week >= 0) AND (day_of_week <= 4))),
+    CONSTRAINT leave_requests_period_check CHECK (((period >= 1) AND (period <= 8))),
+    CONSTRAINT leave_requests_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])))
 );
 
 
@@ -87,7 +93,13 @@ CREATE TABLE public.schedule (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid,
     day_of_week integer NOT NULL,
-    period integer NOT NULL
+    period integer NOT NULL,
+    assigned boolean DEFAULT true NOT NULL,
+    explanation jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT schedule_day_of_week_check CHECK (((day_of_week >= 0) AND (day_of_week <= 4))),
+    CONSTRAINT schedule_period_check CHECK (((period >= 1) AND (period <= 8)))
 );
 
 ALTER TABLE ONLY public.schedule REPLICA IDENTITY FULL;
@@ -158,8 +170,8 @@ ALTER TABLE ONLY public.user_profiles REPLICA IDENTITY FULL;
 CREATE TABLE public.users (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,
-    created_at timestamp without time zone DEFAULT now(),
-    role text DEFAULT 'user'::text,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    role text DEFAULT 'user'::text NOT NULL,
     CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'user'::text])))
 );
 
@@ -535,4 +547,3 @@ CREATE POLICY workflow_history_update_own ON public.workflow_history FOR UPDATE 
 --
 
 \unrestrict 6vPW2kXG9NVkhvfnKRy7axBZakTyMdu7bvvKlpMnZI15tarKmPeNfIoimpVF3ai
-

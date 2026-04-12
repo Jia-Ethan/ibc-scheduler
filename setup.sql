@@ -27,24 +27,47 @@ $$;
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user'))
 );
+
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
+UPDATE public.users SET role = 'user' WHERE role IS NULL;
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE public.users
+  ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'user'));
 
 -- 用户可排班时间
 CREATE TABLE IF NOT EXISTS public.availability (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+  day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 4),
   period INTEGER NOT NULL CHECK (period >= 1 AND period <= 8),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(user_id, day_of_week, period)
 );
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.availability
+    WHERE day_of_week < 0 OR day_of_week > 4
+  ) THEN
+    RAISE EXCEPTION 'public.availability 存在超出周一至周五范围的 day_of_week 数据，请先清理后再执行对齐脚本。';
+  END IF;
+END
+$$;
+
+ALTER TABLE public.availability DROP CONSTRAINT IF EXISTS availability_day_of_week_check;
+ALTER TABLE public.availability
+  ADD CONSTRAINT availability_day_of_week_check CHECK (day_of_week >= 0 AND day_of_week <= 4);
+
 -- 管理员最终排班
 CREATE TABLE IF NOT EXISTS public.schedule (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+  day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 4),
   period INTEGER NOT NULL CHECK (period >= 1 AND period <= 8),
   assigned BOOLEAN NOT NULL DEFAULT true,
   explanation JSONB,
@@ -57,6 +80,21 @@ ALTER TABLE public.schedule ADD COLUMN IF NOT EXISTS assigned BOOLEAN NOT NULL D
 ALTER TABLE public.schedule ADD COLUMN IF NOT EXISTS explanation JSONB;
 ALTER TABLE public.schedule ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE public.schedule ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+UPDATE public.schedule SET assigned = true WHERE assigned IS NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.schedule
+    WHERE day_of_week < 0 OR day_of_week > 4
+  ) THEN
+    RAISE EXCEPTION 'public.schedule 存在超出周一至周五范围的 day_of_week 数据，请先清理后再执行对齐脚本。';
+  END IF;
+END
+$$;
+ALTER TABLE public.schedule DROP CONSTRAINT IF EXISTS schedule_day_of_week_check;
+ALTER TABLE public.schedule
+  ADD CONSTRAINT schedule_day_of_week_check CHECK (day_of_week >= 0 AND day_of_week <= 4);
 
 -- 用户资料 / 补贴资料
 CREATE TABLE IF NOT EXISTS public.user_profiles (
@@ -82,13 +120,29 @@ ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
 CREATE TABLE IF NOT EXISTS public.leave_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+  day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 4),
   period INTEGER NOT NULL CHECK (period >= 1 AND period <= 8),
   reason TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.leave_requests
+    WHERE day_of_week < 0 OR day_of_week > 4
+  ) THEN
+    RAISE EXCEPTION 'public.leave_requests 存在超出周一至周五范围的 day_of_week 数据，请先清理后再执行对齐脚本。';
+  END IF;
+END
+$$;
+
+ALTER TABLE public.leave_requests DROP CONSTRAINT IF EXISTS leave_requests_day_of_week_check;
+ALTER TABLE public.leave_requests
+  ADD CONSTRAINT leave_requests_day_of_week_check CHECK (day_of_week >= 0 AND day_of_week <= 4);
 
 -- 排班历史
 CREATE TABLE IF NOT EXISTS public.schedule_history (

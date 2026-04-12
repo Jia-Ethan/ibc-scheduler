@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   buildExplainableAutoSchedule,
   DEFAULT_AUTO_SCHEDULE_CONFIG,
@@ -23,33 +23,61 @@ import type {
   UserProfile,
 } from '../types';
 
-// ⚠️ 配置你的 Supabase 项目
-// 1. 在 Supabase 创建项目
-// 2. 执行 setup.sql 初始化数据库
-// 3. 在 Project Settings > API 中获取以下信息
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.trim() || '';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() || '';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gwohqnrjsshxqvgpdxkj.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3b2hxbnJqc3NoeHF2Z3BkeGtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MjY5MzMsImV4cCI6MjA4NjMwMjkzM30.TBAyDjYmjyVxfiY95vyNUj4DxML_JNvg5YZV-lrMyCI';
+export function getSupabasePublicConfigError(
+  url: string = SUPABASE_URL,
+  key: string = SUPABASE_KEY,
+): string | null {
+  if (!url || !key) {
+    return '缺少公开 Supabase 配置。请在 .env、.env.local 或构建环境中设置 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY。';
+  }
 
-// 检查配置
-if (SUPABASE_URL.includes('your-project') || SUPABASE_KEY.includes('your-key')) {
-  console.warn('⚠️ 请配置 Supabase：编辑 src/lib/storage.ts 或设置环境变量');
+  if (url.includes('your-project-url') || key.includes('your-anon-key')) {
+    return 'Supabase 配置仍是示例占位值。请改为真实的 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY。';
+  }
+
+  return null;
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+export const SUPABASE_PUBLIC_CONFIG_ERROR = getSupabasePublicConfigError();
+
+let supabaseClient: SupabaseClient | null = null;
+
+function getSupabaseClient(): SupabaseClient {
+  if (SUPABASE_PUBLIC_CONFIG_ERROR) {
+    throw new Error(SUPABASE_PUBLIC_CONFIG_ERROR);
+  }
+
+  if (!supabaseClient) {
+    supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+
+  return supabaseClient;
+}
+
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabaseClient();
+    const value = client[prop as keyof SupabaseClient];
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
+});
 
 // Local cache for offline support
 const LOCAL_STORAGE_KEYS = {
   USERS: 'ibc-users',
   AVAILABILITY: 'ibc-availability',
   SCHEDULE: 'ibc-schedule',
-  SCHEDULE_EXPLANATIONS: 'ibc-schedule-explanations-v2',
   AUTO_SCHEDULE_CONFIG: 'ibc-auto-schedule-config',
   CURRENT_USER: 'ibc-current-user',
   USER_PROFILES: 'ibc-user-profiles',
   SCHEDULE_HISTORY: 'ibc-schedule-history',
   SUBSIDY_RECORDS: 'ibc-subsidy-records',
 };
+
+const LEGACY_SCHEDULE_EXPLANATIONS_KEY = 'ibc-schedule-explanations-v2';
 
 const REQUIRED_SUBSIDY_PROFILE_DB_COLUMNS = [
   'student_id',
@@ -179,9 +207,8 @@ export async function getSubsidyProfileSchemaHealth(): Promise<SubsidyProfileSch
   };
 }
 
-function readScheduleExplanationCache(): Record<string, ScheduleExplanation> {
-  // Keep explanation data additive so the existing schedule table can stay unchanged.
-  const raw = localStorage.getItem(LOCAL_STORAGE_KEYS.SCHEDULE_EXPLANATIONS);
+function readLegacyScheduleExplanationCache(): Record<string, ScheduleExplanation> {
+  const raw = localStorage.getItem(LEGACY_SCHEDULE_EXPLANATIONS_KEY);
   if (!raw) {
     return {};
   }
@@ -189,13 +216,76 @@ function readScheduleExplanationCache(): Record<string, ScheduleExplanation> {
   try {
     return JSON.parse(raw) as Record<string, ScheduleExplanation>;
   } catch (error) {
-    console.error('Error reading cached schedule explanations:', error);
+    console.error('Error reading legacy cached schedule explanations:', error);
     return {};
   }
 }
 
-function writeScheduleExplanationCache(explanations: Record<string, ScheduleExplanation>) {
-  localStorage.setItem(LOCAL_STORAGE_KEYS.SCHEDULE_EXPLANATIONS, JSON.stringify(explanations));
+function isScheduleExplanation(value: unknown): value is ScheduleExplanation {
+  return typeof value === 'object' && value !== null;
+}
+
+export function mapDbScheduleRow(
+  data: Record<string, unknown>,
+  legacyExplanation?: ScheduleExplanation,
+): Schedule {
+  return {
+    userId: String(data.user_id),
+    dayOfWeek: Number(data.day_of_week),
+    period: Number(data.period),
+    assigned: data.assigned === false ? false : true,
+    explanation: isScheduleExplanation(data.explanation) ? data.explanation : legacyExplanation,
+  };
+}
+
+export function toDbScheduleRow(schedule: Schedule) {
+  return {
+    user_id: schedule.userId,
+    day_of_week: schedule.dayOfWeek,
+    period: schedule.period,
+    assigned: schedule.assigned,
+    explanation: schedule.explanation ?? null,
+  };
+}
+
+function readLocalScheduleCache(): Schedule[] {
+  const raw = localStorage.getItem(LOCAL_STORAGE_KEYS.SCHEDULE);
+  const legacyExplanationCache = readLegacyScheduleExplanationCache();
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Schedule[];
+    return parsed.map((item) => ({
+      ...item,
+      explanation: item.explanation || legacyExplanationCache[getScheduleSlotKey(item.dayOfWeek, item.period)],
+    }));
+  } catch (error) {
+    console.error('Error reading cached schedule:', error);
+    return [];
+  }
+}
+
+function writeLocalScheduleCache(schedule: Schedule[]) {
+  localStorage.setItem(LOCAL_STORAGE_KEYS.SCHEDULE, JSON.stringify(schedule));
+}
+
+function upsertLocalScheduleSlot(item: Schedule) {
+  const key = getScheduleSlotKey(item.dayOfWeek, item.period);
+  const next = readLocalScheduleCache().filter(
+    (scheduleItem) => getScheduleSlotKey(scheduleItem.dayOfWeek, scheduleItem.period) !== key,
+  );
+  next.push(item);
+  next.sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.period - b.period);
+  writeLocalScheduleCache(next);
+}
+
+function removeLocalScheduleSlot(dayOfWeek: number, period: number) {
+  const key = getScheduleSlotKey(dayOfWeek, period);
+  writeLocalScheduleCache(
+    readLocalScheduleCache().filter((item) => getScheduleSlotKey(item.dayOfWeek, item.period) !== key),
+  );
 }
 
 type ScheduleHistoryGenerationMode = 'auto' | 'manual';
@@ -427,23 +517,6 @@ async function clearOtherRemoteDrafts(preserveId?: string) {
   if (error) {
     console.error('Error clearing other subsidy drafts:', error);
   }
-}
-
-function setScheduleExplanation(
-  dayOfWeek: number,
-  period: number,
-  explanation?: ScheduleExplanation,
-) {
-  const cache = readScheduleExplanationCache();
-  const key = getScheduleSlotKey(dayOfWeek, period);
-
-  if (explanation) {
-    cache[key] = explanation;
-  } else {
-    delete cache[key];
-  }
-
-  writeScheduleExplanationCache(cache);
 }
 
 export function getAutoScheduleConfig(): AutoScheduleConfig {
@@ -809,30 +882,24 @@ export function isAvailable(userId: string, dayOfWeek: number, period: number): 
 
 // Schedule
 export async function getSchedule(): Promise<Schedule[]> {
-  const explanationCache = readScheduleExplanationCache();
+  const legacyExplanationCache = readLegacyScheduleExplanationCache();
   const { data, error } = await supabase
     .from('schedule')
     .select('*');
   
   if (error) {
     console.error('Error fetching schedule:', error);
-    const local = localStorage.getItem(LOCAL_STORAGE_KEYS.SCHEDULE);
-    const localSchedule = local ? (JSON.parse(local) as Schedule[]) : [];
-    return localSchedule.map((item) => ({
-      ...item,
-      explanation: explanationCache[getScheduleSlotKey(item.dayOfWeek, item.period)],
-    }));
+    return readLocalScheduleCache();
   }
   
-  const transformed = (data || []).map(item => ({
-    userId: item.user_id,
-    dayOfWeek: item.day_of_week,
-    period: item.period,
-    assigned: true,
-    explanation: explanationCache[getScheduleSlotKey(item.day_of_week, item.period)],
-  }));
+  const transformed = (data || []).map((item) =>
+    mapDbScheduleRow(
+      item as Record<string, unknown>,
+      legacyExplanationCache[getScheduleSlotKey(item.day_of_week, item.period)],
+    ),
+  );
   
-  localStorage.setItem(LOCAL_STORAGE_KEYS.SCHEDULE, JSON.stringify(transformed));
+  writeLocalScheduleCache(transformed);
   return transformed;
 }
 
@@ -851,24 +918,24 @@ export async function assignScheduleWithExplanation(
   period: number,
   explanation?: ScheduleExplanation,
 ): Promise<void> {
-  // Delete existing assignment for this slot
-  await supabase
-    .from('schedule')
-    .delete()
-    .eq('day_of_week', dayOfWeek)
-    .eq('period', period);
-  
-  // Insert new assignment
+  const scheduleItem: Schedule = {
+    userId,
+    dayOfWeek,
+    period,
+    assigned: true,
+    explanation,
+  };
+
   const { error } = await supabase
     .from('schedule')
-    .insert([{ user_id: userId, day_of_week: dayOfWeek, period }]);
+    .upsert([toDbScheduleRow(scheduleItem)], { onConflict: 'day_of_week,period' });
   
   if (error) {
     console.error('Error assigning schedule:', error);
     throw error;
   }
 
-  setScheduleExplanation(dayOfWeek, period, explanation);
+  upsertLocalScheduleSlot(scheduleItem);
 }
 
 export async function unassignSchedule(dayOfWeek: number, period: number): Promise<void> {
@@ -883,7 +950,7 @@ export async function unassignSchedule(dayOfWeek: number, period: number): Promi
     throw error;
   }
 
-  setScheduleExplanation(dayOfWeek, period, undefined);
+  removeLocalScheduleSlot(dayOfWeek, period);
 }
 
 export async function clearSchedule(): Promise<void> {
@@ -897,7 +964,7 @@ export async function clearSchedule(): Promise<void> {
     throw error;
   }
 
-  writeScheduleExplanationCache({});
+  writeLocalScheduleCache([]);
 }
 
 // Auto Schedule
@@ -935,13 +1002,16 @@ export async function refreshScheduleExplanations(): Promise<Schedule[]> {
     schedule,
     getAutoScheduleConfig(),
   );
-  const explanationCache = Object.fromEntries(
-    refreshed
-      .filter((item) => item.explanation)
-      .map((item) => [getScheduleSlotKey(item.dayOfWeek, item.period), item.explanation!]),
-  );
+  const { error } = await supabase
+    .from('schedule')
+    .upsert(refreshed.map((item) => toDbScheduleRow(item)), { onConflict: 'day_of_week,period' });
 
-  writeScheduleExplanationCache(explanationCache);
+  if (error) {
+    console.error('Error refreshing schedule explanations:', error);
+    throw error;
+  }
+
+  writeLocalScheduleCache(refreshed);
   return refreshed;
 }
 
