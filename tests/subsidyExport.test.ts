@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
 import {
@@ -32,6 +30,33 @@ const baseRow: SubsidyRow = {
   requiresNote: false,
   missingFields: [],
 };
+
+async function createSubsidyTemplateBuffer() {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('补助明细');
+
+  worksheet.getCell('A4').value = '发放事由：';
+  for (let row = 6; row <= 13; row += 1) {
+    for (let col = 1; col <= 10; col += 1) {
+      const cell = worksheet.getCell(row, col);
+      cell.value = '';
+      cell.font = { name: '宋体', size: 12 };
+      cell.numFmt = col === 9 ? '0' : '';
+    }
+  }
+
+  worksheet.getRow(14).height = 24;
+  worksheet.getRow(15).height = 32;
+  worksheet.getCell('A14').value = `${' '.repeat(88)}合计：`;
+  worksheet.getCell('A15').value = '设岗单位负责人签字：                制表人签字：                制表人电话：              制表日期：';
+  worksheet.getCell('I14').numFmt = '0';
+  worksheet.getCell('A14').font = { name: '宋体', size: 12 };
+  worksheet.getCell('A15').font = { name: '宋体', size: 12 };
+  worksheet.mergeCells('A14:H14');
+  worksheet.mergeCells('A15:J15');
+
+  return workbook.xlsx.writeBuffer();
+}
 
 describe('subsidy export helpers', () => {
   it('validates approved hours against numeric, negative, and max limits', () => {
@@ -171,9 +196,7 @@ describe('subsidy export helpers', () => {
   });
 
   it('exports subsidy workbook with integer amount formatting', async () => {
-    const templateBuffer = await readFile(
-      fileURLToPath(new URL('../public/subsidy-template.xlsx', import.meta.url)),
-    );
+    const templateBuffer = await createSubsidyTemplateBuffer();
 
     const captured: { blob: Blob | null; clicked: boolean } = {
       blob: null,

@@ -15,8 +15,9 @@
 - 🔄 **跨設備同步** - Supabase 實時數據同步
 - 👥 **多使用者支持** - 管理員可添加/刪除使用者
 - 📅 **智能排班** - 自動排班算法，支持手動調整
+- ✉️ **給班提交通知** - 學生確認給班後保存並通知管理員固定郵箱
 - 🌐 **雙語支持** - 中文/English 切換
-- 📊 **CSV 導出** - 一鍵導出排班表
+- 📄 **Word 導出** - 一鍵導出 `.docx` 排班表
 
 ## 🚀 快速部署（3分鐘）
 
@@ -87,14 +88,43 @@ ALTER PUBLICATION supabase_realtime ADD TABLE users;
 
 1. Project Settings > API
 2. 複製 `Project URL` 和 `anon public` key
-3. 更新 `src/lib/storage.ts` 中的配置：
+3. 複製 `.env.example` 為 `.env`，填入前端環境變量：
 
-```typescript
-const SUPABASE_URL = '你的 Project URL';
-const SUPABASE_KEY = '你的 Anon Key';
+```bash
+VITE_SUPABASE_URL=你的 Project URL
+VITE_SUPABASE_ANON_KEY=你的 Anon Key
+
+# 可選：只用於前端彈窗顯示，不要填寫私密 token
+VITE_ADMIN_NOTIFICATION_EMAIL_HINT=a***@example.com
 ```
 
-#### 3. 部署到 GitHub Pages
+#### 3. 配置給班提交郵件
+
+學生點擊「確認排班」時，前端會調用 Supabase Edge Function `confirm-availability-submission`。該 Function 會先保存給班，再通過 Resend 發送通知；如果郵件發送失敗，會盡量回滾本次保存。
+
+部署 Function：
+
+```bash
+supabase functions deploy confirm-availability-submission
+```
+
+在 Supabase Function Secrets 中配置：
+
+```bash
+SUPABASE_URL=你的 Project URL
+SUPABASE_SERVICE_ROLE_KEY=你的 service_role key
+RESEND_API_KEY=你的 Resend API Key
+RESEND_FROM_EMAIL=已驗證的發件地址
+ADMIN_NOTIFICATION_EMAIL=管理員固定收件郵箱
+```
+
+`ADMIN_NOTIFICATION_EMAIL` 只放在 Supabase Secret 裡，前端只顯示 `VITE_ADMIN_NOTIFICATION_EMAIL_HINT` 的脫敏提示。
+
+#### 4. Word 排班表導出依賴
+
+管理員頁的「導出 Word」使用 `docx` 在瀏覽器端生成 `.docx` 文件；安裝依賴時會隨 `npm install` 自動安裝，不需要額外服務端配置。
+
+#### 5. 部署到 GitHub Pages
 
 ```bash
 # 安裝依賴

@@ -52,7 +52,7 @@ import {
   subscribeToSubsidyRecords,
 } from '../lib/storage';
 import { createManualScheduleExplanation } from '../lib/autoSchedule';
-import { exportScheduleToCSV, cn, calculateHoursPerUser } from '../lib/utils';
+import { exportScheduleToWord, cn, calculateHoursPerUser } from '../lib/utils';
 import {
   calculateMonthlySubsidyRows,
   calculateSubsidyAmount,
@@ -602,19 +602,36 @@ export function AdminPage() {
     await refreshData();
   };
 
-  const handleExportCSV = async () => {
-    const usersData = await getUsers();
-    const scheduleData = await getSchedule();
-    const today = new Date();
-    const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
-      today.getDate(),
-    ).padStart(2, '0')}`;
+  const handleExportWord = async () => {
+    setAdminNotice(null);
 
-    exportScheduleToCSV(
-      scheduleData,
-      usersData,
-      `排班表_${localDate}.csv`,
-    );
+    try {
+      const usersData = await getUsers();
+      const scheduleData = await getSchedule();
+      const today = new Date();
+      const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
+        today.getDate(),
+      ).padStart(2, '0')}`;
+      const phoneMap = new Map<string, string>();
+
+      mergedUserProfiles.forEach((profile, userId) => {
+        if (profile.phone) {
+          phoneMap.set(userId, profile.phone);
+        }
+      });
+
+      await exportScheduleToWord(
+        scheduleData,
+        usersData,
+        phoneMap,
+        `排班表_${localDate}.docx`,
+        language,
+      );
+      setAdminNotice({ type: 'success', message: t('exportWordSuccess') });
+    } catch (error) {
+      console.error('Error exporting Word schedule:', error);
+      setAdminNotice({ type: 'error', message: t('exportWordFailed') });
+    }
   };
 
   const handleOpenSubsidyExport = async () => {
@@ -1234,11 +1251,11 @@ export function AdminPage() {
                         {t('autoSchedule')}
                       </button>
                       <button
-                        onClick={handleExportCSV}
+                        onClick={handleExportWord}
                         className="btn-gradient flex items-center gap-2"
                       >
                         <FileText className="w-4 h-4" />
-                        {t('exportCSV')}
+                        {t('exportWord')}
                       </button>
                       <button
                         onClick={handleOpenSubsidyExport}

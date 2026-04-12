@@ -42,6 +42,24 @@ describe('availability draft helpers', () => {
     expect(summary.hasChanges).toBe(true);
   });
 
+  it('reports no changes when the draft matches the confirmed baseline', () => {
+    const summary = diffAvailabilitySlots(
+      [
+        { dayOfWeek: 0, period: 4 },
+        { dayOfWeek: 2, period: 7 },
+      ],
+      [
+        { dayOfWeek: 2, period: 7 },
+        { dayOfWeek: 0, period: 4 },
+      ],
+    );
+
+    expect(summary.addedSlots).toEqual([]);
+    expect(summary.removedSlots).toEqual([]);
+    expect(summary.totalSelected).toBe(2);
+    expect(summary.hasChanges).toBe(false);
+  });
+
   it('round-trips between slot arrays and key sets', () => {
     const set = availabilitySlotsToKeySet([
       { dayOfWeek: 1, period: 3 },
