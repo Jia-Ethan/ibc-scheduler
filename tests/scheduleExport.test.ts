@@ -23,7 +23,6 @@ describe('schedule Word export view model', () => {
       dayOfWeek: 0,
       period: 1,
       userName: '曾心越',
-      phone: '12345678901',
     });
     expect(data.rows[7].cells[4]).toMatchObject({
       dayOfWeek: 4,
@@ -42,10 +41,10 @@ describe('schedule Word export view model', () => {
     );
 
     expect(data.rows[3].cells[2].userName).toBe('未知');
-    expect(data.stats).toEqual([]);
+    expect(data.contactRows).toHaveLength(1);
   });
 
-  it('summarizes assigned slots per known user with phone numbers', () => {
+  it('builds contact rows from user profile phone numbers with missing phone fallback', () => {
     const schedule: Schedule[] = [
       { userId: 'u-1', dayOfWeek: 0, period: 1, assigned: true },
       { userId: 'u-1', dayOfWeek: 1, period: 2, assigned: true },
@@ -54,18 +53,29 @@ describe('schedule Word export view model', () => {
 
     const data = buildScheduleExportTableData(schedule, users, new Map([['u-1', '123']]), 'zh');
 
-    expect(data.stats).toEqual([
-      { userId: 'u-1', name: '曾心越', phone: '123', hours: 2 },
-      { userId: 'u-2', name: '李贤', phone: undefined, hours: 1 },
+    expect(data.contactsTitle).toBe('值班人员联系电话');
+    expect(data.contactRows).toEqual([
+      {
+        left: { userId: 'u-1', name: '曾心越', phone: '123' },
+        right: { userId: 'u-2', name: '李贤', phone: '未设置' },
+      },
     ]);
   });
 
   it('produces an empty but structured table when there is no schedule', () => {
-    const data = buildScheduleExportTableData([], users, new Map(), 'en');
+    const data = buildScheduleExportTableData(
+      [],
+      users,
+      new Map(),
+      'zh',
+      new Date('2026-03-29T12:00:00+08:00'),
+    );
 
-    expect(data.title).toBe('IBC Weekly Schedule');
+    expect(data.title).toBe('国际商学院学生助理值班表');
+    expect(data.updatedAtLabel).toBe('更新日期：2026年3月29日');
+    expect(data.periodLabel).toBe('节次');
     expect(data.rows).toHaveLength(8);
     expect(data.rows.every((row) => row.cells.every((cell) => cell.userName === ''))).toBe(true);
-    expect(data.stats).toEqual([]);
+    expect(data.contactRows).toHaveLength(1);
   });
 });

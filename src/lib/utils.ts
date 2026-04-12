@@ -3,10 +3,12 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  HeightRule,
   Packer,
   Paragraph,
   Table,
   TableCell,
+  TableLayoutType,
   TableRow,
   TextRun,
   VerticalAlignTable,
@@ -80,35 +82,34 @@ export interface ScheduleExportCell {
   dayOfWeek: number;
   period: number;
   userName: string;
-  phone?: string;
 }
 
 export interface ScheduleExportRow {
   period: number;
   periodLabel: string;
-  time: string;
   cells: ScheduleExportCell[];
 }
 
-export interface ScheduleExportStatsRow {
+export interface ScheduleExportContact {
   userId: string;
   name: string;
-  phone?: string;
-  hours: number;
+  phone: string;
+}
+
+export interface ScheduleExportContactRow {
+  left: ScheduleExportContact | null;
+  right: ScheduleExportContact | null;
 }
 
 export interface ScheduleExportTableData {
   title: string;
-  generatedAtLabel: string;
+  updatedAtLabel: string;
   days: string[];
   rows: ScheduleExportRow[];
-  stats: ScheduleExportStatsRow[];
-  emptyText: string;
-  phoneLabel: string;
-  statsTitle: string;
-  statsNameLabel: string;
-  statsHoursLabel: string;
-  periodTimeLabel: string;
+  contactRows: ScheduleExportContactRow[];
+  contactsTitle: string;
+  missingPhoneText: string;
+  periodLabel: string;
 }
 
 export interface WeeklyScheduleGridCell {
@@ -145,39 +146,29 @@ export function calculateHoursPerUser(
   })).sort((a, b) => b.hours - a.hours);
 }
 
-const SCHEDULE_EXPORT_DAYS = {
-  zh: ['周一', '周二', '周三', '周四', '周五'],
-  en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-} as const;
+const SCHEDULE_EXPORT_DAYS = ['周一', '周二', '周三', '周四', '周五'] as const;
 
-const SCHEDULE_EXPORT_PERIODS = {
-  zh: [
-    { num: 1, label: '第1节', time: '08:00-09:00' },
-    { num: 2, label: '第2节', time: '09:00-10:00' },
-    { num: 3, label: '第3节', time: '10:00-11:00' },
-    { num: 4, label: '第4节', time: '11:00-12:00' },
-    { num: 5, label: '第5节', time: '13:00-14:00' },
-    { num: 6, label: '第6节', time: '14:00-15:00' },
-    { num: 7, label: '第7节', time: '15:00-16:00' },
-    { num: 8, label: '第8节', time: '16:00-17:00' },
-  ],
-  en: [
-    { num: 1, label: 'Period 1', time: '08:00-09:00' },
-    { num: 2, label: 'Period 2', time: '09:00-10:00' },
-    { num: 3, label: 'Period 3', time: '10:00-11:00' },
-    { num: 4, label: 'Period 4', time: '11:00-12:00' },
-    { num: 5, label: 'Period 5', time: '13:00-14:00' },
-    { num: 6, label: 'Period 6', time: '14:00-15:00' },
-    { num: 7, label: 'Period 7', time: '15:00-16:00' },
-    { num: 8, label: 'Period 8', time: '16:00-17:00' },
-  ],
-} as const;
+const SCHEDULE_EXPORT_PERIODS = [
+  { num: 1, label: '第1节' },
+  { num: 2, label: '第2节' },
+  { num: 3, label: '第3节' },
+  { num: 4, label: '第4节' },
+  { num: 5, label: '第5节' },
+  { num: 6, label: '第6节' },
+  { num: 7, label: '第7节' },
+  { num: 8, label: '第8节' },
+] as const;
+
+function formatScheduleExportDate(date: Date) {
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
 
 export function buildScheduleExportTableData(
   schedule: Schedule[],
   users: User[],
   phoneMap: Map<string, string> = new Map(),
-  language: ScheduleExportLanguage = 'zh',
+  _language: ScheduleExportLanguage = 'zh',
+  exportDate: Date = new Date(),
 ): ScheduleExportTableData {
   const userMap = new Map(users.map((user) => [user.id, user]));
   const scheduleMap = new Map<string, Schedule>(
@@ -186,85 +177,84 @@ export function buildScheduleExportTableData(
       .map((item) => [`${item.dayOfWeek}-${item.period}`, item] as const),
   );
 
-  const localeText = language === 'en'
-    ? {
-        title: 'IBC Weekly Schedule',
-        generatedAtLabel: `Generated at ${new Date().toLocaleString('en-US')}`,
-        emptyText: 'Unassigned',
-        unknownText: 'Unknown',
-        phoneLabel: 'Phone',
-        statsTitle: 'Duty Slot Summary',
-        statsNameLabel: 'Name',
-        statsHoursLabel: 'Slots',
-        periodTimeLabel: 'Period / Time',
-      }
-    : {
-        title: 'IBC 排班表',
-        generatedAtLabel: `导出时间：${new Date().toLocaleString('zh-CN')}`,
-        emptyText: '未安排',
-        unknownText: '未知',
-        phoneLabel: '电话',
-        statsTitle: '值班时段统计',
-        statsNameLabel: '姓名',
-        statsHoursLabel: '值班时段数',
-        periodTimeLabel: '节次 / 时间',
-      };
+  const templateText = {
+    title: '国际商学院学生助理值班表',
+    updatedAtLabel: `更新日期：${formatScheduleExportDate(exportDate)}`,
+    contactsTitle: '值班人员联系电话',
+    missingPhoneText: '未设置',
+    unknownText: '未知',
+    periodLabel: '节次',
+  };
 
-  const rows = SCHEDULE_EXPORT_PERIODS[language].map((period) => ({
+  const rows = SCHEDULE_EXPORT_PERIODS.map((period) => ({
     period: period.num,
     periodLabel: period.label,
-    time: period.time,
-    cells: SCHEDULE_EXPORT_DAYS[language].map((_, dayOfWeek) => {
+    cells: SCHEDULE_EXPORT_DAYS.map((_, dayOfWeek) => {
       const assignment = scheduleMap.get(`${dayOfWeek}-${period.num}`);
       const user = assignment ? userMap.get(assignment.userId) : undefined;
       return {
         dayOfWeek,
         period: period.num,
-        userName: assignment ? user?.name || localeText.unknownText : '',
-        phone: assignment ? phoneMap.get(assignment.userId) : undefined,
+        userName: assignment ? user?.name || templateText.unknownText : '',
       };
     }),
   }));
 
-  const hoursMap = new Map<string, number>();
-  scheduleMap.forEach((item) => {
-    hoursMap.set(item.userId, (hoursMap.get(item.userId) || 0) + 1);
-  });
+  const contacts: ScheduleExportContact[] = users.map((user) => ({
+    userId: user.id,
+    name: user.name,
+    phone: phoneMap.get(user.id) || templateText.missingPhoneText,
+  }));
 
-  const stats = users
-    .map((user) => ({
-      userId: user.id,
-      name: user.name,
-      phone: phoneMap.get(user.id),
-      hours: hoursMap.get(user.id) || 0,
-    }))
-    .filter((item) => item.hours > 0)
-    .sort((a, b) => b.hours - a.hours || a.name.localeCompare(b.name));
+  const contactRows: ScheduleExportContactRow[] = [];
+  for (let index = 0; index < contacts.length; index += 2) {
+    contactRows.push({
+      left: contacts[index],
+      right: contacts[index + 1] || null,
+    });
+  }
 
   return {
-    ...localeText,
-    days: [...SCHEDULE_EXPORT_DAYS[language]],
+    ...templateText,
+    days: [...SCHEDULE_EXPORT_DAYS],
     rows,
-    stats,
+    contactRows,
   };
 }
 
 const wordTableBorder = {
   style: BorderStyle.SINGLE,
-  size: 1,
-  color: 'CBD5E1',
+  size: 4,
+  color: 'auto',
 };
 
-function createWordParagraph(text: string, options: { bold?: boolean; size?: number; color?: string } = {}) {
+const WORD_TEMPLATE_FONT = {
+  ascii: 'FangSong',
+  eastAsia: 'FangSong',
+  hAnsi: 'FangSong',
+  hint: 'eastAsia',
+} as const;
+
+function createWordParagraph(
+  text: string,
+  options: {
+    bold?: boolean;
+    size?: number;
+    color?: string;
+    alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
+    spacing?: { before?: number; after?: number };
+  } = {},
+) {
   return new Paragraph({
-    alignment: AlignmentType.CENTER,
+    alignment: options.alignment,
+    spacing: options.spacing,
     children: [
       new TextRun({
         text,
         bold: options.bold,
         size: options.size || 22,
         color: options.color || '0F172A',
-        font: 'Microsoft YaHei',
+        font: WORD_TEMPLATE_FONT,
       }),
     ],
   });
@@ -280,8 +270,8 @@ function createWordCell(
     width: options.width ? { size: options.width, type: WidthType.DXA } : undefined,
     shading: options.shading ? { fill: options.shading } : undefined,
     margins: {
-      top: 120,
-      bottom: 120,
+      top: 90,
+      bottom: 90,
       left: 120,
       right: 120,
     },
@@ -291,6 +281,8 @@ function createWordCell(
 function createScheduleWordTable(data: ScheduleExportTableData) {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
+    columnWidths: [950, 1550, 1550, 1550, 1550, 1550],
+    layout: TableLayoutType.FIXED,
     borders: {
       top: wordTableBorder,
       bottom: wordTableBorder,
@@ -302,33 +294,48 @@ function createScheduleWordTable(data: ScheduleExportTableData) {
     rows: [
       new TableRow({
         tableHeader: true,
+        height: { value: 720, rule: HeightRule.ATLEAST },
         children: [
-          createWordCell([createWordParagraph(data.periodTimeLabel, { bold: true, color: '334155' })], {
-            shading: 'E2E8F0',
-            width: 1800,
+          createWordCell([createWordParagraph(data.periodLabel, {
+            bold: true,
+            size: 24,
+            alignment: AlignmentType.CENTER,
+          })], {
+            shading: 'AEBBCD',
+            width: 950,
           }),
           ...data.days.map((day) =>
-            createWordCell([createWordParagraph(day, { bold: true, color: '334155' })], { shading: 'E2E8F0' }),
+            createWordCell([createWordParagraph(day, {
+              bold: true,
+              size: 24,
+              alignment: AlignmentType.CENTER,
+            })], { shading: 'AEBBCD', width: 1550 }),
           ),
         ],
       }),
       ...data.rows.map((row) =>
         new TableRow({
+          height: { value: 820, rule: HeightRule.ATLEAST },
           children: [
             createWordCell([
-              createWordParagraph(row.periodLabel, { bold: true }),
-              createWordParagraph(row.time, { size: 18, color: '64748B' }),
-            ], { shading: row.period <= 4 ? 'EFF6FF' : 'FFFBEB', width: 1800 }),
+              createWordParagraph(row.periodLabel, {
+                bold: true,
+                size: 21,
+                alignment: AlignmentType.CENTER,
+              }),
+            ], { shading: 'E8EEF5', width: 950 }),
             ...row.cells.map((cell) =>
               createWordCell(
                 cell.userName
                   ? [
-                      createWordParagraph(cell.userName, { bold: true }),
-                      ...(cell.phone
-                        ? [createWordParagraph(`${data.phoneLabel}: ${cell.phone}`, { size: 18, color: '64748B' })]
-                        : []),
+                      createWordParagraph(cell.userName, {
+                        bold: true,
+                        size: 24,
+                        alignment: AlignmentType.CENTER,
+                      }),
                     ]
-                  : [createWordParagraph(data.emptyText, { size: 18, color: '94A3B8' })],
+                  : [new Paragraph({ text: '' })],
+                cell.userName ? { shading: 'F7FAFF', width: 1550 } : { width: 1550 },
               ),
             ),
           ],
@@ -338,9 +345,19 @@ function createScheduleWordTable(data: ScheduleExportTableData) {
   });
 }
 
-function createStatsWordTable(data: ScheduleExportTableData) {
+function formatContact(contact: ScheduleExportContact | null) {
+  return contact ? `${contact.name}：${contact.phone}` : '';
+}
+
+function createContactsWordTable(data: ScheduleExportTableData) {
+  const rows = data.contactRows.length > 0
+    ? data.contactRows
+    : [{ left: null, right: null }];
+
   return new Table({
-    width: { size: 60, type: WidthType.PERCENTAGE },
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    columnWidths: [4350, 4350],
+    layout: TableLayoutType.FIXED,
     borders: {
       top: wordTableBorder,
       bottom: wordTableBorder,
@@ -349,52 +366,25 @@ function createStatsWordTable(data: ScheduleExportTableData) {
       insideHorizontal: wordTableBorder,
       insideVertical: wordTableBorder,
     },
-    rows: [
+    rows: rows.map((row) =>
       new TableRow({
-        tableHeader: true,
         children: [
-          createWordCell([createWordParagraph(data.statsNameLabel, { bold: true, color: '334155' })], {
-            shading: 'E2E8F0',
-          }),
-          createWordCell([createWordParagraph(data.phoneLabel, { bold: true, color: '334155' })], {
-            shading: 'E2E8F0',
-          }),
-          createWordCell([createWordParagraph(data.statsHoursLabel, { bold: true, color: '334155' })], {
-            shading: 'E2E8F0',
-          }),
+          createWordCell([createWordParagraph(formatContact(row.left), { size: 20 })], { width: 4350 }),
+          createWordCell([createWordParagraph(formatContact(row.right), { size: 20 })], { width: 4350 }),
         ],
       }),
-      ...(data.stats.length > 0
-        ? data.stats.map((row) =>
-            new TableRow({
-              children: [
-                createWordCell([createWordParagraph(row.name)]),
-                createWordCell([createWordParagraph(row.phone || '-')]),
-                createWordCell([createWordParagraph(String(row.hours))]),
-              ],
-            }),
-          )
-        : [
-            new TableRow({
-              children: [
-                createWordCell([createWordParagraph(data.emptyText, { color: '94A3B8' })]),
-                createWordCell([createWordParagraph('-')]),
-                createWordCell([createWordParagraph('0')]),
-              ],
-            }),
-          ]),
-    ],
+    ),
   });
 }
 
-export async function exportScheduleToWord(
+export function createScheduleWordDocument(
   schedule: Schedule[],
   users: User[],
   phoneMap: Map<string, string> = new Map(),
-  filename: string = 'schedule.docx',
   language: ScheduleExportLanguage = 'zh',
-): Promise<void> {
-  const data = buildScheduleExportTableData(schedule, users, phoneMap, language);
+  exportDate: Date = new Date(),
+) {
+  const data = buildScheduleExportTableData(schedule, users, phoneMap, language, exportDate);
   const wordDocument = new Document({
     title: data.title,
     creator: 'IBC Scheduler',
@@ -418,8 +408,8 @@ export async function exportScheduleToWord(
               new TextRun({
                 text: data.title,
                 bold: true,
-                size: 36,
-                font: 'Microsoft YaHei',
+                size: 48,
+                font: WORD_TEMPLATE_FONT,
               }),
             ],
           }),
@@ -428,32 +418,41 @@ export async function exportScheduleToWord(
             spacing: { after: 240 },
             children: [
               new TextRun({
-                text: data.generatedAtLabel,
-                size: 18,
-                color: '64748B',
-                font: 'Microsoft YaHei',
+                text: data.updatedAtLabel,
+                size: 20,
+                font: WORD_TEMPLATE_FONT,
               }),
             ],
           }),
           createScheduleWordTable(data),
-          new Paragraph({ text: '', spacing: { after: 240 } }),
           new Paragraph({
-            spacing: { before: 240, after: 120 },
+            spacing: { before: 420, after: 180 },
             children: [
               new TextRun({
-                text: data.statsTitle,
+                text: data.contactsTitle,
                 bold: true,
-                size: 26,
-                font: 'Microsoft YaHei',
+                size: 28,
+                font: WORD_TEMPLATE_FONT,
               }),
             ],
           }),
-          createStatsWordTable(data),
+          createContactsWordTable(data),
         ],
       },
     ],
   });
 
+  return wordDocument;
+}
+
+export async function exportScheduleToWord(
+  schedule: Schedule[],
+  users: User[],
+  phoneMap: Map<string, string> = new Map(),
+  filename: string = 'schedule.docx',
+  language: ScheduleExportLanguage = 'zh',
+): Promise<void> {
+  const wordDocument = createScheduleWordDocument(schedule, users, phoneMap, language);
   const blob = await Packer.toBlob(wordDocument);
   const link = document.createElement('a');
   const objectUrl = URL.createObjectURL(blob);
