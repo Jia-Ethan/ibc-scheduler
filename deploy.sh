@@ -101,8 +101,11 @@ cd "$PROJECT_ROOT"
 echo ""
 echo "✅ 部署完成！"
 echo ""
+REPO_PATH=$(git remote get-url origin | sed -E 's#^git@github.com:##; s#^https://github.com/##; s#\.git$##')
+REPO_OWNER=${REPO_PATH%%/*}
+REPO_NAME=${REPO_PATH#*/}
 echo "🌐 你的網站將在以下地址可用："
-echo "   https://$(git remote get-url origin | sed 's/.*github.com[:/]//' | sed 's/.git$//' | sed 's/\\//.github.io\\//')"
+echo "   https://${REPO_OWNER}.github.io/${REPO_NAME}/"
 echo ""
 echo "⚠️  如果這是首次部署，請在 GitHub 倉庫設置中啟用 Pages："
 echo "   Settings > Pages > Source > Deploy from a branch > gh-pages"
