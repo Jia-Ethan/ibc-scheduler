@@ -14,6 +14,8 @@ import {
 } from './subsidy';
 import type {
   AutoScheduleConfig,
+  AvailabilitySlot,
+  ConfirmAvailabilitySubmissionResult,
   ScheduleExplanation,
   User,
   Availability,
@@ -704,6 +706,98 @@ export async function toggleAvailability(userId: string, dayOfWeek: number, peri
       .from('availability')
       .insert([{ user_id: userId, day_of_week: dayOfWeek, period }]);
   }
+}
+
+export function getConfirmAvailabilitySubmissionErrorMessage(errorText?: string): string {
+  if (!errorText) {
+    return '提交失败，请稍后重试。';
+  }
+
+  if (errorText.includes('Missing required function secrets')) {
+    return '缺少管理员邮箱或邮件服务配置，请联系管理员补齐 Supabase Function Secrets。';
+  }
+
+  if (errorText.includes('Email failed and availability rollback failed')) {
+    return '邮件发送失败，且回滚给班状态失败。请联系管理员确认当前保存状态。';
+  }
+
+  if (errorText.includes('Email failed. Availability has been rolled back')) {
+    return '邮件发送失败，给班结果未保存。请稍后重试或联系管理员。';
+  }
+
+  if (errorText.includes('No availability changes to submit')) {
+    return '本次没有给班变更，无需提交。';
+  }
+
+  if (errorText.includes('Invalid availability slot payload')) {
+    return '给班时段数据异常，请刷新页面后重试。';
+  }
+
+  if (errorText.includes('User not found')) {
+    return '未找到当前用户，请返回首页重新选择姓名。';
+  }
+
+  if (
+    errorText.includes('Failed to send a request to the Edge Function')
+    || errorText.includes('Relay Error invoking the Edge Function')
+  ) {
+    return '无法连接邮件提交服务，请稍后重试。';
+  }
+
+  return `提交失败：${errorText}`;
+}
+
+async function readFunctionErrorText(error: unknown): Promise<string | undefined> {
+  const context = typeof error === 'object' && error !== null && 'context' in error
+    ? (error as { context?: unknown }).context
+    : undefined;
+
+  if (context instanceof Response) {
+    try {
+      const payload = await context.clone().json() as { error?: unknown };
+      if (typeof payload.error === 'string') {
+        return payload.error;
+      }
+    } catch {
+      try {
+        return await context.clone().text();
+      } catch {
+        // Fall back to the generic error message below.
+      }
+    }
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return typeof error === 'string' ? error : undefined;
+}
+
+export async function confirmAvailabilitySubmission(
+  userId: string,
+  slots: AvailabilitySlot[],
+): Promise<ConfirmAvailabilitySubmissionResult> {
+  const { data, error } = await supabase.functions.invoke<ConfirmAvailabilitySubmissionResult>(
+    'confirm-availability-submission',
+    {
+      body: {
+        userId,
+        slots,
+      },
+    },
+  );
+
+  if (error) {
+    const errorText = await readFunctionErrorText(error);
+    throw new Error(getConfirmAvailabilitySubmissionErrorMessage(errorText));
+  }
+
+  if (!data?.success) {
+    throw new Error(getConfirmAvailabilitySubmissionErrorMessage());
+  }
+
+  return data;
 }
 
 export function isAvailable(userId: string, dayOfWeek: number, period: number): boolean {
