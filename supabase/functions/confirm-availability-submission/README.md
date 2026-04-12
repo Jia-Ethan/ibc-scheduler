@@ -10,6 +10,18 @@
 - `RESEND_FROM_EMAIL`
 - `ADMIN_NOTIFICATION_EMAIL`
 
+部署命令：
+
+```bash
+supabase functions deploy confirm-availability-submission
+```
+
 前端如果想在弹窗里显示脱敏后的收件邮箱提示，可以额外在项目环境变量里配置：
 
 - `VITE_ADMIN_NOTIFICATION_EMAIL_HINT`
+
+前端调用失败时会按以下语义提示用户：
+
+- 邮件发送失败且回滚成功：给班结果不会保存，用户需要稍后重试。
+- 邮件发送失败且回滚失败：保存状态不确定，需要联系管理员核对。
+- 缺少 Function Secrets：提示管理员补齐邮件和收件邮箱配置。
