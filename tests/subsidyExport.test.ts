@@ -202,16 +202,19 @@ describe('subsidy export helpers', () => {
       blob: null,
       clicked: false,
     };
+    const requestedUrls: string[] = [];
 
     const originalFetch = globalThis.fetch;
     const originalCreateObjectURL = globalThis.URL.createObjectURL;
     const originalDocument = globalThis.document;
 
-    globalThis.fetch = async () =>
-      new Response(templateBuffer, {
+    globalThis.fetch = async (input) => {
+      requestedUrls.push(String(input));
+      return new Response(templateBuffer, {
         status: 200,
         headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
       });
+    };
 
     globalThis.URL.createObjectURL = ((blob: Blob) => {
       captured.blob = blob;
@@ -251,6 +254,8 @@ describe('subsidy export helpers', () => {
 
     expect(captured.clicked).toBe(true);
     expect(captured.blob).not.toBeNull();
+    expect(requestedUrls[0]).toContain('subsidy-template');
+    expect(requestedUrls[0]).toContain('.xlsx');
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await captured.blob!.arrayBuffer());

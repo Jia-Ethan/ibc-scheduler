@@ -67,6 +67,13 @@ if ! grep -q "base: './'" vite.config.ts; then
 fi
 npm run build
 
+if ! find dist -type f -name 'subsidy-template*.xlsx' -print -quit | grep -q .; then
+    echo ""
+    echo "❌ 构建产物缺少 subsidy-template.xlsx，补贴导出上线后会失败。"
+    echo "请先确认模板资产已被 Vite 复制或打包进 dist，再重新部署。"
+    exit 1
+fi
+
 # 部署到 GitHub Pages
 echo "📤 部署到 GitHub Pages..."
 

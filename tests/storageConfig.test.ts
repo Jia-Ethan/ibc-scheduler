@@ -95,9 +95,15 @@ describe('schedule persistence mapping', () => {
 });
 
 describe('subsidy template asset', () => {
-  it('keeps the subsidy export template in public assets', () => {
-    const templatePath = path.resolve(__dirname, '../public/subsidy-template.xlsx');
-    expect(fs.existsSync(templatePath)).toBe(true);
-    expect(fs.statSync(templatePath).size).toBeGreaterThan(0);
+  it('keeps the subsidy export template in both bundled and public assets', () => {
+    const templatePaths = [
+      path.resolve(__dirname, '../src/assets/subsidy-template.xlsx'),
+      path.resolve(__dirname, '../public/subsidy-template.xlsx'),
+    ];
+
+    templatePaths.forEach((templatePath) => {
+      expect(fs.existsSync(templatePath)).toBe(true);
+      expect(fs.statSync(templatePath).size).toBeGreaterThan(0);
+    });
   });
 });

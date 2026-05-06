@@ -147,8 +147,8 @@ ADMIN_NOTIFICATION_EMAIL=管理员真实收件邮箱
 ### 补贴导出
 
 - 入口：管理员页“补贴记录”
-- 模板资产：`public/subsidy-template.xlsx`
-- 实现：浏览器端读取模板并导出 `.xlsx`
+- 模板资产：`src/assets/subsidy-template.xlsx` 会随前端构建打包；`public/subsidy-template.xlsx` 保留为发布产物中的固定副本
+- 实现：浏览器端读取打包后的模板并导出 `.xlsx`
 - 云端记录：保存在 `subsidy_records`
 - 草稿可继续编辑，已导出记录支持复制、再次导出、删除
 

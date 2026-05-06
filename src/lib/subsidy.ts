@@ -1,6 +1,7 @@
 import type { Schedule, User, UserProfile } from '../types';
+import subsidyTemplateUrl from '../assets/subsidy-template.xlsx?url';
 
-const TEMPLATE_URL = `${import.meta.env.BASE_URL}subsidy-template.xlsx?v=20260326-2`;
+export const SUBSIDY_TEMPLATE_URL = subsidyTemplateUrl;
 export const HOURLY_RATE = 23.7;
 export const MAX_STANDARD_HOURS = 30;
 export const MAX_STANDARD_AMOUNT = Math.round(HOURLY_RATE * MAX_STANDARD_HOURS);
@@ -530,7 +531,7 @@ export async function exportSubsidyDetailsToExcel(
   referenceDate: Date = new Date(),
 ) {
   const ExcelJS = await import('exceljs');
-  const response = await fetch(TEMPLATE_URL);
+  const response = await fetch(SUBSIDY_TEMPLATE_URL);
   if (!response.ok) {
     throw new Error('无法加载补助明细模板');
   }
